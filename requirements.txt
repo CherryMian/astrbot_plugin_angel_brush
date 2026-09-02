@@ -1,0 +1,1 @@
+# Reuse upstream dependencies (httpx/aiohttp/Pillow already in astrbot_plugin_angel_heart)
