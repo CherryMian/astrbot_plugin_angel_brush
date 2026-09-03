@@ -237,30 +237,13 @@ class BrushAPI:
         return _ok(items)
 
     async def image_b64(self):
-        rel = ""
         try:
-            if HAS_WEB:
-                q = getattr(request, "query", None)
-                if isinstance(q, dict):
-                    rel = (q.get("path") or "").strip()
-                else:
-                    # quart-style or Starlette query_params
-                    qp = getattr(request, "query_params", None)
-                    if qp is not None:
-                        try:
-                            rel = (qp.get("path") or "").strip()
-                        except Exception:
-                            rel = ""
-                    if not rel:
-                        # fallback: try request.args
-                        try:
-                            rel = (request.args.get("path") or "").strip()  # type: ignore
-                        except Exception:
-                            rel = ""
-            else:
-                rel = (request.args.get("path") or "").strip()  # type: ignore
+            rel = (request.query.get("path") or "").strip()
         except Exception:
-            rel = ""
+            try:
+                rel = (request.args.get("path") or "").strip()  # type: ignore[attr-defined]
+            except Exception:
+                rel = ""
         if not rel:
             return _err("缺少 path 参数")
         target = (self.data_dir / rel).resolve()
