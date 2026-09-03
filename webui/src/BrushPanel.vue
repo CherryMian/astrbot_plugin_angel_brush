@@ -192,10 +192,12 @@
                       placeholder="请选择生图模型"
                       clearable
                       size="small"
+                      @update:value="onDefaultModelChange"
                     />
                   </n-form-item>
                 </n-form>
                 <n-alert v-if="!modelOptions.length" type="warning" :show-icon="false" style="margin-top: 10px">还没有可用模型，请先在供应商设置中添加并启用供应商与模型</n-alert>
+                <div class="hint" style="margin-top: 8px">切换后自动保存并即时生效，无需再点右下角保存</div>
               </n-card>
             </template>
           </template>
@@ -624,6 +626,16 @@ async function save() {
   } finally {
     saving.value = false
   }
+}
+
+let defaultSaveTimer: number | null = null
+async function onDefaultModelChange() {
+  if (loading.value) return
+  if (!baseline.value) return
+  if (defaultSaveTimer) window.clearTimeout(defaultSaveTimer)
+  defaultSaveTimer = window.setTimeout(() => {
+    void save()
+  }, 300) as unknown as number
 }
 
 // ------- 工具测试：两工具全参数 + 本地上传 -------
