@@ -85,32 +85,32 @@
 
                 <n-grid :cols="2" :x-gap="12" :y-gap="10" responsive="screen" collapsed-rows="1">
                   <n-gi>
-                    <n-form-item label="名称" size="small" style="margin-bottom: 0">
+                    <n-form-item label="名称" size="small" :show-feedback="false" style="margin-bottom: 0">
                       <n-input v-model:value="p.name" placeholder="如：OpenAI Images" size="small" />
                     </n-form-item>
                   </n-gi>
                   <n-gi>
-                    <n-form-item label="类型" size="small" style="margin-bottom: 0">
+                    <n-form-item label="类型" size="small" :show-feedback="false" style="margin-bottom: 0">
                       <n-select v-model:value="p.provider_type" :options="kindOptions" size="small" />
                     </n-form-item>
                   </n-gi>
                   <n-gi :span="2">
-                    <n-form-item label="Base URL" size="small" style="margin-bottom: 0">
+                    <n-form-item label="Base URL" size="small" :show-feedback="false" style="margin-bottom: 0">
                       <n-input v-model:value="p.base_url" placeholder="https://api.openai.com/v1" size="small" />
                     </n-form-item>
                   </n-gi>
                   <n-gi>
-                    <n-form-item label="超时 (秒)" size="small" style="margin-bottom: 0">
+                    <n-form-item label="超时 (秒)" size="small" :show-feedback="false" style="margin-bottom: 0">
                       <n-input-number v-model:value="p.timeout_seconds" :min="10" :max="600" :show-button="false" size="small" style="width: 140px" />
                     </n-form-item>
                   </n-gi>
                   <n-gi>
-                    <n-form-item label="水印" size="small" style="margin-bottom: 0">
+                    <n-form-item label="水印" size="small" :show-feedback="false" style="margin-bottom: 0">
                       <n-switch v-model:value="p.watermark" size="small" />
                     </n-form-item>
                   </n-gi>
                   <n-gi :span="2">
-                    <n-form-item label="API Keys" size="small" style="margin-bottom: 0">
+                    <n-form-item label="API Keys" size="small" :show-feedback="false" style="margin-bottom: 0">
                       <div class="key-row">
                         <n-tag
                           v-for="(k, ki) in p.api_keys"
@@ -138,7 +138,7 @@
                   </n-gi>
                   <template v-if="p.provider_type === 'comfyui'">
                     <n-gi :span="2">
-                      <n-form-item label="ComfyUI Workflow JSON" size="small" style="margin-bottom: 0">
+                      <n-form-item label="ComfyUI Workflow JSON" size="small" :show-feedback="false" style="margin-bottom: 0">
                         <n-input v-model:value="p.comfyui_workflow_json" type="textarea" :autosize="{ minRows: 3 }" placeholder='{"prompt":...}' size="small" />
                       </n-form-item>
                     </n-gi>
@@ -169,12 +169,12 @@
                   </div>
                   <n-grid :cols="2" :x-gap="10" :y-gap="8">
                     <n-gi>
-                      <n-form-item label="显示名" size="small" style="margin-bottom: 0">
+                      <n-form-item label="显示名" size="small" :show-feedback="false" style="margin-bottom: 0">
                         <n-input v-model:value="m.name" placeholder="如：GPT Image 1" size="small" />
                       </n-form-item>
                     </n-gi>
                     <n-gi>
-                      <n-form-item label="模型名" size="small" style="margin-bottom: 0">
+                      <n-form-item label="模型名" size="small" :show-feedback="false" style="margin-bottom: 0">
                         <n-input
                           :value="m.model"
                           placeholder="如：gpt-image-1"
@@ -1012,9 +1012,7 @@ onMounted(() => { void reload() })
   padding: 12px 14px;
   margin-bottom: 14px;
 }
-/* 收紧表单：去掉 form-item 默认的 feedback 占位与 label 大间距 */
-.provider-card .n-form-item-feedback-wrapper { display: none; }
-.provider-card .n-form-item-label { padding-bottom: 4px; }
+/* 收紧表单：用 n-form-item 的 :show-feedback="false" prop，不覆盖内部类 */
 .provider-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
 .provider-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
 .provider-name { font-weight: 600; color: var(--text-1); font-size: 13px; }
