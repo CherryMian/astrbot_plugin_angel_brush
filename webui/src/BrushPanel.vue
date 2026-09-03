@@ -56,7 +56,7 @@
                 </n-button>
               </div>
             </div>
-            <p class="content-sub">直接在 WebUI 填，不提供插件设置。6 家协议 openai / xai / seedream / gemini / sensenova / comfyui 同时支持，保存后即时生效</p>
+            <p class="content-sub">6 家协议 openai / xai / seedream / gemini / sensenova / comfyui，保存后即时生效</p>
 
             <n-spin v-if="loading" size="small" style="margin-top: 40px" />
 
@@ -68,9 +68,7 @@
                   <div class="provider-title">
                     <Icon icon="lucide:server" class="inline-icon" />
                     <span class="provider-name">{{ p.name || '未命名供应商' }}</span>
-                    <n-tag size="small" :type="p.enabled ? 'success' : 'default'">{{ p.enabled ? '启用' : '停用' }}</n-tag>
                     <n-tag size="small" type="info">{{ p.provider_type }}</n-tag>
-                    <span class="provider-id">{{ p.id }}</span>
                   </div>
                   <div class="provider-actions">
                     <n-switch v-model:value="p.enabled" size="small" />
@@ -103,20 +101,38 @@
                   </n-gi>
                   <n-gi>
                     <n-form-item label="超时 (秒)" size="small" style="margin-bottom: 0">
-                      <n-input-number v-model:value="p.timeout_seconds" :min="10" :max="600" size="small" style="width: 100%" />
+                      <n-input-number v-model:value="p.timeout_seconds" :min="10" :max="600" :show-button="false" size="small" style="width: 140px" />
                     </n-form-item>
                   </n-gi>
                   <n-gi>
                     <n-form-item label="水印" size="small" style="margin-bottom: 0">
-                      <n-switch v-model:value="p.watermark" size="small">
-                        <template #checked>开启</template>
-                        <template #unchecked>关闭</template>
-                      </n-switch>
+                      <n-switch v-model:value="p.watermark" size="small" />
                     </n-form-item>
                   </n-gi>
                   <n-gi :span="2">
                     <n-form-item label="API Keys" size="small" style="margin-bottom: 0">
-                      <n-dynamic-tags v-model:value="p.api_keys" size="small" />
+                      <div class="key-row">
+                        <n-tag
+                          v-for="(k, ki) in p.api_keys"
+                          :key="ki"
+                          size="small"
+                          :bordered="false"
+                          closable
+                          @close="p.api_keys.splice(ki, 1)"
+                        >
+                          {{ maskKey(k) }}
+                        </n-tag>
+                        <n-input
+                          v-model:value="keyInput[p.id]"
+                          size="small"
+                          placeholder="sk-... 回车添加"
+                          style="width: 220px"
+                          @keyup.enter="addKey(p)"
+                        />
+                        <n-button size="small" quaternary @click="addKey(p)">
+                          <template #icon><Icon icon="lucide:plus" /></template>
+                        </n-button>
+                      </div>
                     </n-form-item>
                     <div class="hint">支持多 key 轮询，空则不鉴权</div>
                   </n-gi>
@@ -141,7 +157,6 @@
                 <div v-for="(m, mIdx) in p.models" :key="m.id" class="model-card">
                   <div class="model-head">
                     <span class="model-name">{{ m.name || m.model }}</span>
-                    <n-tag size="tiny" :type="m.enabled ? 'success' : 'default'">{{ m.enabled ? '启用' : '停用' }}</n-tag>
                     <n-switch v-model:value="m.enabled" size="small" style="margin-left: auto" />
                     <n-popconfirm @positive-click="removeModel(p, mIdx)">
                       <template #trigger>
@@ -418,7 +433,6 @@ import {
   NButton,
   NCard,
   NCheckbox,
-  NDynamicTags,
   NDivider,
   NEmpty,
   NForm,
@@ -512,6 +526,19 @@ const styleRecommend = ref(false)
 const customStyle = ref('')
 const templates = ref<Record<string, any>>({})
 const baseline = ref('')
+
+// API Keys 输入草稿（按 provider id 暂存，不进持久化数据）
+const keyInput = reactive<Record<string, string>>({})
+function maskKey(k: string): string {
+  if (k.length <= 12) return k
+  return `${k.slice(0, 6)}…${k.slice(-4)}`
+}
+function addKey(p: Provider) {
+  const v = (keyInput[p.id] || '').trim()
+  if (!v) return
+  if (!p.api_keys.includes(v)) p.api_keys.push(v)
+  keyInput[p.id] = ''
+}
 
 // 前端内置模型→擅长画风预览（与后端 core/config.py 的 MODEL_STYLES 保持一致）
 const MODEL_STYLE_PREVIEW: Record<string, string> = {
@@ -985,26 +1012,28 @@ onMounted(() => { void reload() })
   padding: 12px 14px;
   margin-bottom: 14px;
 }
-.provider-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+/* 收紧表单：去掉 form-item 默认的 feedback 占位与 label 大间距 */
+.provider-card .n-form-item-feedback-wrapper { display: none; }
+.provider-card .n-form-item-label { padding-bottom: 4px; }
+.provider-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
 .provider-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
 .provider-name { font-weight: 600; color: var(--text-1); font-size: 13px; }
-.provider-id { font-size: 10px; color: var(--text-3); font-family: Consolas, monospace; }
 .provider-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .hint { font-size: 11px; color: var(--text-3); margin-top: 4px; }
-.models-head { display: flex; align-items: center; justify-content: space-between; margin: 12px 0 8px; }
+.key-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.models-head { display: flex; align-items: center; justify-content: space-between; margin: 10px 0 6px; }
 .models-title { font-size: 12px; color: var(--text-2); font-weight: 600; }
 .model-empty { font-size: 12px; color: var(--text-3); padding: 8px; text-align: center; border: 1px dashed var(--glass-divider); border-radius: var(--radius-xs); }
 .model-card {
   border: 1px dashed var(--glass-divider);
   background: rgba(255,255,255,0.45);
   border-radius: var(--radius-sm);
-  padding: 10px;
+  padding: 8px 10px;
   margin-bottom: 8px;
 }
 :root[data-theme='dark'] .model-card { background: rgba(255,255,255,0.06); }
-.model-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.model-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
 .model-name { font-weight: 600; font-size: 12px; color: var(--text-1); }
-.model-id { font-size: 10px; color: var(--text-3); font-family: Consolas, monospace; }
 .save-bar { display: flex; align-items: center; gap: 12px; margin-top: 6px; flex-wrap: wrap; }
 
 .setting-card { margin-top: 6px; }
