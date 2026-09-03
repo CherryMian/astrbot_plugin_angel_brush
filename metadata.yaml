@@ -1,6 +1,6 @@
 name: astrbot_plugin_angel_brush
 display_name: 天使的画笔
 desc: "让机器人会画画、会改图：说一句话就出图，发张图就能改；六家画图服务随便换，模型自己挑，配置全在网页上点点就行。"
-version: 0.1.0
+version: 0.2.0
 author: kawayiYokami
 repo: https://github.com/kawayiYokami/astrbot_plugin_angel_brush

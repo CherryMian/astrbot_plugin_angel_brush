@@ -98,25 +98,32 @@ body {
   background: var(--bg-base);
 }
 
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(42% 36% at 12% 8%, rgba(10, 132, 255, 0.16), transparent 70%),
+    radial-gradient(38% 32% at 92% 16%, rgba(94, 92, 230, 0.13), transparent 70%),
+    radial-gradient(46% 40% at 55% 100%, rgba(255, 55, 95, 0.08), transparent 72%);
+}
+
+:root[data-theme='dark'] body::before {
+  background:
+    radial-gradient(42% 36% at 12% 8%, rgba(10, 132, 255, 0.2), transparent 70%),
+    radial-gradient(38% 32% at 92% 16%, rgba(191, 90, 242, 0.14), transparent 70%),
+    radial-gradient(46% 40% at 55% 100%, rgba(100, 210, 255, 0.07), transparent 72%);
+}
+
 #app {
   position: relative;
   z-index: 1;
 }
 
-.n-button.n-button--default-type {
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-}
-
 .n-card,
 .n-modal {
   border-radius: var(--radius-lg);
-}
-
-.n-card {
-  border: 1px solid var(--glass-border);
-  box-shadow:
-    inset 0 1px 0 var(--glass-highlight),
-    var(--glass-shadow) !important;
 }
 </style>

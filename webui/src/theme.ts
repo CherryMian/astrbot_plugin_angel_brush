@@ -53,54 +53,18 @@ const brand = {
 
 export function buildThemeOverrides(mode: ThemeMode): GlobalThemeOverrides {
   const c = brand[mode]
-  const glassCard = mode === 'light' ? 'rgba(255, 255, 255, 0.88)' : 'rgba(44, 44, 46, 0.85)'
-  const btnGlass =
-    mode === 'light'
-      ? {
-          color: 'rgba(255, 255, 255, 0.55)',
-          colorHover: 'rgba(255, 255, 255, 0.78)',
-          colorPressed: 'rgba(255, 255, 255, 0.5)',
-          colorFocus: 'rgba(255, 255, 255, 0.55)',
-          border: '1px solid rgba(255, 255, 255, 0.65)',
-          borderHover: '1px solid rgba(255, 255, 255, 0.95)',
-          borderPressed: '1px solid rgba(255, 255, 255, 0.5)',
-          borderFocus: '1px solid rgba(255, 255, 255, 0.65)',
-        }
-      : {
-          color: 'rgba(44, 44, 46, 0.5)',
-          colorHover: 'rgba(72, 72, 76, 0.62)',
-          colorPressed: 'rgba(40, 40, 42, 0.55)',
-          colorFocus: 'rgba(44, 44, 46, 0.5)',
-          border: '1px solid rgba(255, 255, 255, 0.14)',
-          borderHover: '1px solid rgba(255, 255, 255, 0.28)',
-          borderPressed: '1px solid rgba(255, 255, 255, 0.12)',
-          borderFocus: '1px solid rgba(255, 255, 255, 0.14)',
-        }
   return {
     common: {
       primaryColor: c.base,
       primaryColorHover: c.hover,
       primaryColorPressed: c.pressed,
       primaryColorSuppl: c.suppl,
+      fontSize: '15px',
       borderRadius: '10px',
       borderRadiusSmall: '8px',
-      cardColor: glassCard,
     },
     Button: {
       borderRadius: '999px',
-      ...btnGlass,
-    },
-    Layout: {
-      color: 'transparent',
-      siderColor: 'transparent',
-      headerColor: 'transparent',
-      footerColor: 'transparent',
-    },
-    Menu: {
-      color: 'transparent',
-    },
-    Card: {
-      colorEmbedded: glassCard,
     },
   }
 }

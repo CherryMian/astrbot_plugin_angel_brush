@@ -46,11 +46,11 @@
             <div class="content-header">
               <h2>供应商设置</h2>
               <div class="header-actions">
-                <n-button size="small" @click="reload">
+                <n-button @click="reload">
                   <template #icon><Icon icon="lucide:refresh-cw" /></template>
                   刷新
                 </n-button>
-                <n-button size="small" type="primary" @click="addProvider">
+                <n-button type="primary" @click="addProvider">
                   <template #icon><Icon icon="lucide:plus" /></template>
                   供应商
                 </n-button>
@@ -58,7 +58,7 @@
             </div>
             <p class="content-sub">6 家协议 openai / xai / seedream / gemini / sensenova / comfyui，保存后即时生效</p>
 
-            <n-spin v-if="loading" size="small" style="margin-top: 40px" />
+            <n-spin v-if="loading" style="margin-top: 40px" />
 
             <template v-else>
               <n-empty v-if="!providers.length" description="还没有供应商，点击右上角新增" style="margin-top: 30px" />
@@ -68,13 +68,13 @@
                   <div class="provider-title">
                     <Icon icon="lucide:server" class="inline-icon" />
                     <span class="provider-name">{{ p.name || '未命名供应商' }}</span>
-                    <n-tag size="small" type="info">{{ p.provider_type }}</n-tag>
+                    <n-tag type="info">{{ p.provider_type }}</n-tag>
                   </div>
                   <div class="provider-actions">
-                    <n-switch v-model:value="p.enabled" size="small" />
+                    <n-switch v-model:value="p.enabled" />
                     <n-popconfirm @positive-click="removeProvider(pIdx)">
                       <template #trigger>
-                        <n-button size="small" quaternary circle type="error" title="删除供应商">
+                        <n-button quaternary circle type="error" title="删除供应商">
                           <template #icon><Icon icon="lucide:trash-2" /></template>
                         </n-button>
                       </template>
@@ -85,37 +85,37 @@
 
                 <n-grid :cols="2" :x-gap="12" :y-gap="10" responsive="screen" collapsed-rows="1">
                   <n-gi>
-                    <n-form-item label="名称" size="small" :show-feedback="false" style="margin-bottom: 0">
-                      <n-input v-model:value="p.name" placeholder="如：OpenAI Images" size="small" />
+                    <n-form-item label="名称" :show-feedback="false" style="margin-bottom: 0">
+                      <n-input v-model:value="p.name" placeholder="如：OpenAI Images" />
                     </n-form-item>
                   </n-gi>
                   <n-gi>
-                    <n-form-item label="类型" size="small" :show-feedback="false" style="margin-bottom: 0">
-                      <n-select v-model:value="p.provider_type" :options="kindOptions" size="small" />
+                    <n-form-item label="类型" :show-feedback="false" style="margin-bottom: 0">
+                      <n-select v-model:value="p.provider_type" :options="kindOptions" />
                     </n-form-item>
                   </n-gi>
                   <n-gi :span="2">
-                    <n-form-item label="Base URL" size="small" :show-feedback="false" style="margin-bottom: 0">
-                      <n-input v-model:value="p.base_url" placeholder="https://api.openai.com/v1" size="small" />
+                    <n-form-item label="Base URL" :show-feedback="false" style="margin-bottom: 0">
+                      <n-input v-model:value="p.base_url" placeholder="https://api.openai.com/v1" />
                     </n-form-item>
                   </n-gi>
                   <n-gi>
-                    <n-form-item label="超时 (秒)" size="small" :show-feedback="false" style="margin-bottom: 0">
-                      <n-input-number v-model:value="p.timeout_seconds" :min="10" :max="600" :show-button="false" size="small" style="width: 140px" />
+                    <n-form-item label="超时 (秒)" :show-feedback="false" style="margin-bottom: 0">
+                      <n-input-number v-model:value="p.timeout_seconds" :min="10" :max="600" :show-button="false" style="width: 140px" />
                     </n-form-item>
                   </n-gi>
                   <n-gi>
-                    <n-form-item label="水印" size="small" :show-feedback="false" style="margin-bottom: 0">
-                      <n-switch v-model:value="p.watermark" size="small" />
+                    <n-form-item label="水印" :show-feedback="false" style="margin-bottom: 0">
+                      <n-switch v-model:value="p.watermark" />
                     </n-form-item>
                   </n-gi>
                   <n-gi :span="2">
-                    <n-form-item label="API Keys" size="small" :show-feedback="false" style="margin-bottom: 0">
+                    <n-form-item label="API Keys" :show-feedback="false" style="margin-bottom: 0">
                       <div class="key-row">
                         <n-tag
                           v-for="(k, ki) in p.api_keys"
                           :key="ki"
-                          size="small"
+                         
                           :bordered="false"
                           closable
                           @close="p.api_keys.splice(ki, 1)"
@@ -124,12 +124,12 @@
                         </n-tag>
                         <n-input
                           v-model:value="keyInput[p.id]"
-                          size="small"
+                         
                           placeholder="sk-... 回车添加"
                           style="width: 220px"
                           @keyup.enter="addKey(p)"
                         />
-                        <n-button size="small" quaternary @click="addKey(p)">
+                        <n-button quaternary @click="addKey(p)">
                           <template #icon><Icon icon="lucide:plus" /></template>
                         </n-button>
                       </div>
@@ -138,8 +138,8 @@
                   </n-gi>
                   <template v-if="p.provider_type === 'comfyui'">
                     <n-gi :span="2">
-                      <n-form-item label="ComfyUI Workflow JSON" size="small" :show-feedback="false" style="margin-bottom: 0">
-                        <n-input v-model:value="p.comfyui_workflow_json" type="textarea" :autosize="{ minRows: 3 }" placeholder='{"prompt":...}' size="small" />
+                      <n-form-item label="ComfyUI Workflow JSON" :show-feedback="false" style="margin-bottom: 0">
+                        <n-input v-model:value="p.comfyui_workflow_json" type="textarea" :autosize="{ minRows: 3 }" placeholder='{"prompt":...}' />
                       </n-form-item>
                     </n-gi>
                   </template>
@@ -157,7 +157,7 @@
                 <div v-for="(m, mIdx) in p.models" :key="m.id" class="model-card">
                   <div class="model-head">
                     <span class="model-name">{{ m.name || m.model }}</span>
-                    <n-switch v-model:value="m.enabled" size="small" style="margin-left: auto" />
+                    <n-switch v-model:value="m.enabled" style="margin-left: auto" />
                     <n-popconfirm @positive-click="removeModel(p, mIdx)">
                       <template #trigger>
                         <n-button size="tiny" quaternary circle type="error">
@@ -169,16 +169,16 @@
                   </div>
                   <n-grid :cols="2" :x-gap="10" :y-gap="8">
                     <n-gi>
-                      <n-form-item label="显示名" size="small" :show-feedback="false" style="margin-bottom: 0">
-                        <n-input v-model:value="m.name" placeholder="如：GPT Image 1" size="small" />
+                      <n-form-item label="显示名" :show-feedback="false" style="margin-bottom: 0">
+                        <n-input v-model:value="m.name" placeholder="如：GPT Image 1" />
                       </n-form-item>
                     </n-gi>
                     <n-gi>
-                      <n-form-item label="模型名" size="small" :show-feedback="false" style="margin-bottom: 0">
+                      <n-form-item label="模型名" :show-feedback="false" style="margin-bottom: 0">
                         <n-input
                           :value="m.model"
                           placeholder="如：gpt-image-1"
-                          size="small"
+                         
                           @update:value="(v: string) => onModelNameChange(p, m, v)"
                         />
                       </n-form-item>
@@ -196,9 +196,9 @@
               <h2>功能设置</h2>
             </div>
 
-            <n-spin v-if="loading" size="small" style="margin-top: 40px" />
+            <n-spin v-if="loading" style="margin-top: 40px" />
             <template v-else>
-              <n-card size="small" class="setting-card">
+              <n-card class="setting-card">
                 <n-form label-placement="top">
                   <n-form-item label="生图模型">
                     <n-select
@@ -206,7 +206,7 @@
                       :options="modelOptions"
                       placeholder="请选择生图模型"
                       clearable
-                      size="small"
+                     
                       @update:value="onDefaultModelChange"
                     />
                   </n-form-item>
@@ -217,7 +217,7 @@
                     <span class="style-title">画风注入（写入工具说明，LLM 每次调用可见）</span>
                   </div>
                   <n-form-item label="按模型推荐画风">
-                    <n-checkbox v-model:checked="styleRecommend" size="small" @update:checked="onStyleChange">
+                    <n-checkbox v-model:checked="styleRecommend" @update:checked="onStyleChange">
                       使用当前模型擅长的画风
                     </n-checkbox>
                     <template #feedback>
@@ -232,7 +232,7 @@
                       type="textarea"
                       :autosize="{ minRows: 1, maxRows: 3 }"
                       placeholder="如：多画赛璐璐动画风、色彩明亮干净，可叠加模型推荐一起生效"
-                      size="small"
+                     
                       @update:value="onStyleChange"
                     />
                     <template #feedback>
@@ -250,7 +250,7 @@
           <template v-else>
             <div class="content-header">
               <h2>工具测试</h2>
-              <n-button size="small" @click="refreshGenerated">
+              <n-button @click="refreshGenerated">
                 <template #icon><Icon icon="lucide:refresh-cw" /></template>
                 刷新已生成
               </n-button>
@@ -260,24 +260,24 @@
             <n-tabs type="line" animated :value="toolTab" @update:value="(v: string) => toolTab = v as any">
               <!-- 生图 -->
               <n-tab-pane name="generate" tab="angel_image_generate">
-                <n-card size="small" class="setting-card">
+                <n-card class="setting-card">
                   <n-form label-placement="top">
-                    <n-form-item label="生图模型（留空则用功能设置中的默认）" size="small">
-                      <n-select v-model:value="genForm.model_id" :options="modelOptionsWithDefault" placeholder="默认模型" clearable size="small" />
+                    <n-form-item label="生图模型（留空则用功能设置中的默认）">
+                      <n-select v-model:value="genForm.model_id" :options="modelOptionsWithDefault" placeholder="默认模型" clearable />
                     </n-form-item>
-                    <n-form-item label="prompt *" size="small">
+                    <n-form-item label="prompt *">
                       <n-input v-model:value="genForm.prompt" type="textarea" :autosize="{ minRows: 2, maxRows: 5 }" placeholder="a cute cat sitting on a cloud, anime style" />
                     </n-form-item>
-                    <n-form-item label="negative_prompt" size="small">
+                    <n-form-item label="negative_prompt">
                       <n-input v-model:value="genForm.negative_prompt" type="textarea" :autosize="{ minRows: 1, maxRows: 3 }" placeholder="不希望出现的内容" />
                     </n-form-item>
                     <n-grid :cols="2" :x-gap="10" :y-gap="6">
-                      <n-gi><n-form-item label="分辨率 (size / resolution)" size="small"><n-input v-model:value="genForm.size" placeholder="1024x1024" clearable size="small" /></n-form-item></n-gi>
-                      <n-gi><n-form-item label="快捷尺寸" size="small"><n-select v-model:value="genForm.size" :options="resOptions" placeholder="选择预设" clearable size="small" /></n-form-item></n-gi>
-                      <n-gi><n-form-item label="宽高比 (aspect_ratio)" size="small"><n-input v-model:value="genForm.aspect_ratio" placeholder="如 16:9 / 1:1" clearable size="small" /></n-form-item></n-gi>
-                      <n-gi><n-form-item label="质量 (quality)" size="small"><n-input v-model:value="genForm.quality" placeholder="如 medium / high" clearable size="small" /></n-form-item></n-gi>
-                      <n-gi><n-form-item label="数量 n (1-4)" size="small"><n-input-number v-model:value="genForm.n" :min="1" :max="4" size="small" style="width: 100%" /></n-form-item></n-gi>
-                      <n-gi><n-form-item label="seed" size="small"><n-input v-model:value="genForm.seed" placeholder="留空随机" clearable size="small" /></n-form-item></n-gi>
+                      <n-gi><n-form-item label="分辨率 (size / resolution)"><n-input v-model:value="genForm.size" placeholder="1024x1024" clearable /></n-form-item></n-gi>
+                      <n-gi><n-form-item label="快捷尺寸"><n-select v-model:value="genForm.size" :options="resOptions" placeholder="选择预设" clearable /></n-form-item></n-gi>
+                      <n-gi><n-form-item label="宽高比 (aspect_ratio)"><n-input v-model:value="genForm.aspect_ratio" placeholder="如 16:9 / 1:1" clearable /></n-form-item></n-gi>
+                      <n-gi><n-form-item label="质量 (quality)"><n-input v-model:value="genForm.quality" placeholder="如 medium / high" clearable /></n-form-item></n-gi>
+                      <n-gi><n-form-item label="数量 n (1-4)"><n-input-number v-model:value="genForm.n" :min="1" :max="4" style="width: 100%" /></n-form-item></n-gi>
+                      <n-gi><n-form-item label="seed"><n-input v-model:value="genForm.seed" placeholder="留空随机" clearable /></n-form-item></n-gi>
                     </n-grid>
                   </n-form>
                   <div class="test-actions">
@@ -302,21 +302,21 @@
 
               <!-- 编辑 -->
               <n-tab-pane name="edit" tab="angel_image_edit">
-                <n-card size="small" class="setting-card">
+                <n-card class="setting-card">
                   <n-form label-placement="top">
-                    <n-form-item label="生图模型（留空则用默认）" size="small">
-                      <n-select v-model:value="editForm.model_id" :options="modelOptionsWithDefault" placeholder="默认模型" clearable size="small" />
+                    <n-form-item label="生图模型（留空则用默认）">
+                      <n-select v-model:value="editForm.model_id" :options="modelOptionsWithDefault" placeholder="默认模型" clearable />
                     </n-form-item>
-                    <n-form-item label="prompt *" size="small">
+                    <n-form-item label="prompt *">
                       <n-input v-model:value="editForm.prompt" type="textarea" :autosize="{ minRows: 2, maxRows: 5 }" placeholder="把背景换成海边日落，保留主体" />
                     </n-form-item>
-                    <n-form-item label="negative_prompt" size="small">
+                    <n-form-item label="negative_prompt">
                       <n-input v-model:value="editForm.negative_prompt" type="textarea" :autosize="{ minRows: 1, maxRows: 3 }" placeholder="不希望出现的内容" />
                     </n-form-item>
-                    <n-form-item label="输入图片 images *（可多选，支持多图融合）" size="small">
+                    <n-form-item label="输入图片 images *（可多选，支持多图融合）">
                       <div class="upload-area">
                         <input ref="editFileInput" type="file" accept="image/*" multiple style="display:none" @change="onEditFiles" />
-                        <n-button size="small" @click="triggerEditPick">
+                        <n-button @click="triggerEditPick">
                           <template #icon><Icon icon="lucide:upload" /></template>
                           选择图片
                         </n-button>
@@ -335,10 +335,10 @@
                         </div>
                       </div>
                     </n-form-item>
-                    <n-form-item label="mask（可选，白色区域为可编辑区）" size="small">
+                    <n-form-item label="mask（可选，白色区域为可编辑区）">
                       <div class="upload-area">
                         <input ref="maskFileInput" type="file" accept="image/*" style="display:none" @change="onMaskFile" />
-                        <n-button size="small" @click="triggerMaskPick">
+                        <n-button @click="triggerMaskPick">
                           <template #icon><Icon icon="lucide:upload" /></template>
                           选择 mask
                         </n-button>
@@ -352,11 +352,11 @@
                       </div>
                     </n-form-item>
                     <n-grid :cols="2" :x-gap="10" :y-gap="6">
-                      <n-gi><n-form-item label="分辨率 (size / resolution)" size="small"><n-input v-model:value="editForm.size" placeholder="1024x1024" clearable size="small" /></n-form-item></n-gi>
-                      <n-gi><n-form-item label="快捷尺寸" size="small"><n-select v-model:value="editForm.size" :options="resOptions" placeholder="选择预设" clearable size="small" /></n-form-item></n-gi>
-                      <n-gi><n-form-item label="宽高比 (aspect_ratio)" size="small"><n-input v-model:value="editForm.aspect_ratio" placeholder="如 16:9" clearable size="small" /></n-form-item></n-gi>
-                      <n-gi><n-form-item label="质量 (quality)" size="small"><n-input v-model:value="editForm.quality" placeholder="如 medium" clearable size="small" /></n-form-item></n-gi>
-                      <n-gi><n-form-item label="seed" size="small"><n-input v-model:value="editForm.seed" placeholder="留空随机" clearable size="small" /></n-form-item></n-gi>
+                      <n-gi><n-form-item label="分辨率 (size / resolution)"><n-input v-model:value="editForm.size" placeholder="1024x1024" clearable /></n-form-item></n-gi>
+                      <n-gi><n-form-item label="快捷尺寸"><n-select v-model:value="editForm.size" :options="resOptions" placeholder="选择预设" clearable /></n-form-item></n-gi>
+                      <n-gi><n-form-item label="宽高比 (aspect_ratio)"><n-input v-model:value="editForm.aspect_ratio" placeholder="如 16:9" clearable /></n-form-item></n-gi>
+                      <n-gi><n-form-item label="质量 (quality)"><n-input v-model:value="editForm.quality" placeholder="如 medium" clearable /></n-form-item></n-gi>
+                      <n-gi><n-form-item label="seed"><n-input v-model:value="editForm.seed" placeholder="留空随机" clearable /></n-form-item></n-gi>
                     </n-grid>
                   </n-form>
                   <n-alert v-if="!editImages.length" type="warning" :show-icon="false" style="margin-top: 6px">请先上传至少一张输入图片</n-alert>
@@ -385,7 +385,7 @@
               <span class="gen-title"><Icon icon="lucide:images" class="inline-icon" /> 已生成（最近 40 张）</span>
               <span class="hint">{{ generated.length }} 张</span>
             </div>
-            <n-spin v-if="genLoading" size="small" />
+            <n-spin v-if="genLoading" />
             <n-empty v-else-if="!generated.length" description="还没有生成记录" />
             <div v-else class="img-grid">
               <div v-for="it in generated" :key="it.relative_path" class="img-card" @click="openImage(it)">
@@ -979,7 +979,7 @@ onMounted(() => { void reload() })
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 17px;
+  font-size: 16px;
   color: inherit;
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-full);
@@ -992,80 +992,87 @@ onMounted(() => { void reload() })
 }
 .theme-toggle:hover { transform: scale(1.06); }
 .theme-toggle:active { transform: scale(0.94); }
-.inline-icon { width: 13px; height: 13px; vertical-align: -2px; margin-right: 2px; color: var(--text-3); }
+.inline-icon { width: 14px; height: 14px; vertical-align: -2px; margin-right: 2px; color: var(--text-3); }
 .sider-scroll { flex: 1; }
 .sider-footer { padding: 10px 16px; border-top: 1px solid var(--glass-divider); }
-.foot-hint { font-size: 10px; color: var(--text-3); word-break: break-all; }
+.foot-hint { font-size: 12px; color: var(--text-3); word-break: break-all; }
 .content { flex: 1; min-width: 0; overflow: hidden; }
 .content-scroll { height: 100%; }
 .content-inner { max-width: 860px; margin: 0 auto; padding: 20px 26px; }
 .content-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
-.content-header h2 { font-size: 18px; color: var(--text-1); }
+.content-header h2 { font-size: 16px; color: var(--text-1); }
 .header-actions { display: flex; gap: 8px; align-items: center; }
 .content-sub { font-size: 12px; color: var(--text-3); margin-bottom: 14px; }
 
 .provider-card {
-  background: var(--glass-regular-bg);
-  border: 1px solid var(--glass-border);
-  box-shadow: inset 0 1px 0 var(--glass-highlight);
+  background: #fff;
+  border: 1px solid var(--glass-divider);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
   border-radius: var(--radius-md);
   padding: 12px 14px;
   margin-bottom: 14px;
 }
+:root[data-theme='dark'] .provider-card { background: rgba(255, 255, 255, 0.04); }
 /* 收紧表单：用 n-form-item 的 :show-feedback="false" prop，不覆盖内部类 */
 .provider-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
 .provider-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
-.provider-name { font-weight: 600; color: var(--text-1); font-size: 13px; }
+.provider-name { font-weight: 600; color: var(--text-1); }
 .provider-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-.hint { font-size: 11px; color: var(--text-3); margin-top: 4px; }
+.hint { font-size: 12px; color: var(--text-3); margin-top: 4px; }
 .key-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .models-head { display: flex; align-items: center; justify-content: space-between; margin: 10px 0 6px; }
 .models-title { font-size: 12px; color: var(--text-2); font-weight: 600; }
 .model-empty { font-size: 12px; color: var(--text-3); padding: 8px; text-align: center; border: 1px dashed var(--glass-divider); border-radius: var(--radius-xs); }
 .model-card {
   border: 1px dashed var(--glass-divider);
-  background: rgba(255,255,255,0.45);
+  background: rgba(0, 0, 0, 0.02);
   border-radius: var(--radius-sm);
   padding: 8px 10px;
   margin-bottom: 8px;
 }
-:root[data-theme='dark'] .model-card { background: rgba(255,255,255,0.06); }
+:root[data-theme='dark'] .model-card { background: rgba(255,255,255,0.04); }
 .model-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
-.model-name { font-weight: 600; font-size: 12px; color: var(--text-1); }
+.model-name { font-weight: 600; color: var(--text-1); }
 .save-bar { display: flex; align-items: center; gap: 12px; margin-top: 6px; flex-wrap: wrap; }
 
-.setting-card { margin-top: 6px; }
+.setting-card {
+  margin-top: 6px;
+  --n-color: #fff;
+  --n-border-color: var(--glass-divider);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+}
+:root[data-theme='dark'] .setting-card { --n-color: rgba(255, 255, 255, 0.04); }
 .stat-card { text-align: center; }
-.stat-num { font-size: 22px; font-weight: 700; color: var(--accent); }
-.stat-label { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+.stat-num { font-size: 16px; font-weight: 700; color: var(--accent); }
+.stat-label { font-size: 12px; color: var(--text-3); margin-top: 2px; }
 .tool-info { display: flex; flex-direction: column; gap: 8px; }
 .tool-row { display: flex; gap: 10px; align-items: baseline; }
 .tool-name { font-family: Consolas, monospace; font-size: 12px; color: var(--accent); background: var(--accent-soft); padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
-.tool-desc { font-size: 12px; color: var(--text-2); }
+.tool-desc { color: var(--text-2); }
 .tool-meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 4px; }
 
 .test-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
 .test-previews { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; margin-top: 12px; }
 .test-preview { border: 1px solid var(--glass-border); border-radius: var(--radius-md); overflow: hidden; background: var(--glass-regular-bg); }
 .test-preview img { width: 100%; display: block; }
-.preview-md { font-size: 11px; color: var(--text-3); padding: 8px; word-break: break-all; background: var(--glass-regular-bg); }
+.preview-md { font-size: 12px; color: var(--text-3); padding: 8px; word-break: break-all; background: var(--glass-regular-bg); }
 .upload-area { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .upload-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; margin-top: 8px; }
 .upload-thumb { border: 1px solid var(--glass-border); border-radius: var(--radius-sm); overflow: hidden; background: var(--glass-regular-bg); }
 .upload-thumb img { width: 100%; height: 110px; object-fit: cover; display: block; }
 .upload-thumb-bar { display: flex; align-items: center; gap: 6px; padding: 4px 6px; }
-.upload-thumb-name { flex: 1; min-width: 0; font-size: 10px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.upload-thumb-name { flex: 1; min-width: 0; font-size: 12px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .gen-head { display: flex; align-items: center; justify-content: space-between; margin-top: 18px; margin-bottom: 10px; }
-.gen-title { font-size: 13px; font-weight: 600; color: var(--text-1); }
+.gen-title { font-weight: 600; color: var(--text-1); }
 .img-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
 .img-card { border: 1px solid var(--glass-border); border-radius: var(--radius-sm); overflow: hidden; background: var(--glass-regular-bg); cursor: pointer; transition: transform 0.15s, border-color 0.15s; }
 .img-card:hover { transform: translateY(-2px); border-color: var(--accent); }
 .img-card img { width: 100%; height: 140px; object-fit: cover; display: block; }
-.img-placeholder { height: 140px; display: flex; align-items: center; justify-content: center; color: var(--text-3); font-size: 22px; background: var(--glass-divider); }
+.img-placeholder { height: 140px; display: flex; align-items: center; justify-content: center; color: var(--text-3); font-size: 16px; background: var(--glass-divider); }
 .img-cap { padding: 6px 8px; display: flex; flex-direction: column; gap: 2px; }
-.img-name { font-size: 11px; color: var(--text-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.img-date { font-size: 10px; color: var(--text-3); }
+.img-name { font-size: 12px; color: var(--text-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.img-date { font-size: 12px; color: var(--text-3); }
 
 .save-fab { position: fixed; right: 26px; bottom: 26px; z-index: 100; box-shadow: var(--glass-shadow); }
 .fab-enter-active, .fab-leave-active { transition: opacity 0.25s ease, transform 0.25s ease; }
