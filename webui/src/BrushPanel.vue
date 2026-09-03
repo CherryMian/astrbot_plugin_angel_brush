@@ -195,6 +195,35 @@
                       @update:value="onDefaultModelChange"
                     />
                   </n-form-item>
+
+                  <!-- 画风注入：勾选叠加，非互斥 -->
+                  <n-divider style="margin-top: 16px" />
+                  <div class="style-head">
+                    <span class="style-title">画风注入（写入工具说明，LLM 每次调用可见）</span>
+                  </div>
+                  <n-form-item label="按模型推荐画风">
+                    <n-checkbox v-model:checked="styleRecommend" size="small" @update:checked="onStyleChange">
+                      使用当前模型擅长的画风
+                    </n-checkbox>
+                    <template #feedback>
+                      <span v-if="defaultModelId && currentModelStyle" class="hint">{{ defaultModelId.split('::')[0] }} → {{ currentModelStyle }}</span>
+                      <span v-else-if="defaultModelId && !currentModelStyle" class="hint warn">当前模型没有内置画风词条，仅勾选也不注入</span>
+                      <span v-else class="hint">选择生图模型后，这里会显示该模型擅长的画风</span>
+                    </template>
+                  </n-form-item>
+                  <n-form-item label="自定义画风">
+                    <n-input
+                      v-model:value="customStyle"
+                      type="textarea"
+                      :autosize="{ minRows: 1, maxRows: 3 }"
+                      placeholder="如：多画赛璐璐动画风、色彩明亮干净，可叠加模型推荐一起生效"
+                      size="small"
+                      @update:value="onStyleChange"
+                    />
+                    <template #feedback>
+                      <span class="hint">留空则不注入；与模型推荐可同时生效</span>
+                    </template>
+                  </n-form-item>
                 </n-form>
                 <n-alert v-if="!modelOptions.length" type="warning" :show-icon="false" style="margin-top: 10px">还没有可用模型，请先在供应商设置中添加并启用供应商与模型</n-alert>
                 <div class="hint" style="margin-top: 8px">切换后自动保存并即时生效，无需再点右下角保存</div>
@@ -388,7 +417,9 @@ import {
   NAlert,
   NButton,
   NCard,
+  NCheckbox,
   NDynamicTags,
+  NDivider,
   NEmpty,
   NForm,
   NFormItem,
@@ -477,8 +508,25 @@ const loading = ref(false)
 const saving = ref(false)
 const providers = ref<Provider[]>([])
 const defaultModelId = ref<string | null>(null)
+const styleRecommend = ref(false)
+const customStyle = ref('')
 const templates = ref<Record<string, any>>({})
 const baseline = ref('')
+
+// 前端内置模型→擅长画风预览（与后端 core/config.py 的 MODEL_STYLES 保持一致）
+const MODEL_STYLE_PREVIEW: Record<string, string> = {
+  seedream: '商业写实/产品广告、杂志风信息图排版、国风传统艺术、潮流动漫手办、影视游戏概念原画',
+  'gpt-image': '版式化设计/信息卡片、吉卜力/水彩/绘本、3D Q版/Low Poly/像素/矢量插画',
+  gemini: '写实摄影纪实、3D 卡通等距微缩、信息图表商业营销（含清晰字体渲染）',
+  sensenova: '扁平插画手绘、专业平面设计商用海报、长卷连环叙事、细腻写实',
+}
+const currentModelStyle = computed(() => {
+  const id = defaultModelId.value
+  if (!id) return ''
+  const key = id.split('::')[0].toLowerCase()
+  const hit = Object.keys(MODEL_STYLE_PREVIEW).find(k => key.includes(k))
+  return hit ? MODEL_STYLE_PREVIEW[hit] : ''
+})
 
 const modelOptions = computed(() => {
   const opts: { label: string; value: string }[] = []
@@ -495,7 +543,12 @@ const modelOptions = computed(() => {
 
 const dirty = computed(() => {
   if (loading.value) return false
-  const cur = JSON.stringify({ providers: providers.value, defaultModelId: defaultModelId.value })
+  const cur = JSON.stringify({
+    providers: providers.value,
+    defaultModelId: defaultModelId.value,
+    styleRecommend: styleRecommend.value,
+    customStyle: customStyle.value,
+  })
   return cur !== baseline.value
 })
 
@@ -524,8 +577,15 @@ async function reload() {
     }))
     providers.value = list
     defaultModelId.value = data.default_model_id || null
+    styleRecommend.value = !!data.style_recommend
+    customStyle.value = data.custom_style || ''
     templates.value = data.templates || {}
-    baseline.value = JSON.stringify({ providers: providers.value, defaultModelId: defaultModelId.value })
+    baseline.value = JSON.stringify({
+      providers: providers.value,
+      defaultModelId: defaultModelId.value,
+      styleRecommend: styleRecommend.value,
+      customStyle: customStyle.value,
+    })
   } catch (e) {
     message.error(`加载失败: ${(e as Error).message}`)
   } finally {
@@ -611,6 +671,8 @@ async function save() {
         })),
       })),
       default_model_id: defaultModelId.value || null,
+      style_recommend: !!styleRecommend.value,
+      custom_style: customStyle.value.trim(),
     }
     const data: any = await apiPost('config/save', payload)
     // server returns normalized providers/options, keep client in sync
@@ -618,7 +680,12 @@ async function save() {
       // reload to reflect normalization
       await reload()
     } else {
-      baseline.value = JSON.stringify({ providers: providers.value, defaultModelId: defaultModelId.value })
+      baseline.value = JSON.stringify({
+        providers: providers.value,
+        defaultModelId: defaultModelId.value,
+        styleRecommend: styleRecommend.value,
+        customStyle: customStyle.value,
+      })
     }
     message.success('已保存并即时生效')
   } catch (e) {
@@ -634,6 +701,16 @@ async function onDefaultModelChange() {
   if (!baseline.value) return
   if (defaultSaveTimer) window.clearTimeout(defaultSaveTimer)
   defaultSaveTimer = window.setTimeout(() => {
+    void save()
+  }, 300) as unknown as number
+}
+
+let styleSaveTimer: number | null = null
+function onStyleChange() {
+  if (loading.value) return
+  if (!baseline.value) return
+  if (styleSaveTimer) window.clearTimeout(styleSaveTimer)
+  styleSaveTimer = window.setTimeout(() => {
     void save()
   }, 300) as unknown as number
 }

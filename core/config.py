@@ -16,6 +16,34 @@ PROVIDER_KINDS = {
     "sensenova",
 }
 
+# 模型前缀 -> 擅长画风描述（用户确认口径）
+MODEL_STYLES: dict[str, str] = {
+    "seedream": (
+        "商业级写实与产品广告（光影/皮肤/金属/玻璃/水滴等物理材质还原、丁达尔光、环境反射，"
+        "适合电商主图、产品广告、真实感人像写真）；杂志风信息图与结构化排版（图文混排、数据图表、"
+        "科普图鉴、多语言文字渲染，适合公众号配图/课件/活动海报）；国风与传统艺术（古风、东方美学、"
+        "汉服细节、古典建筑）；潮流动漫与手办风格（卡通、赛博朋克、手办模型质感、极简潮流插画）；"
+        "影视与游戏概念原画（宏大世界观场景、角色立绘、分镜草图、多图多镜头人物一致性/锁脸强）"
+    ),
+    "gpt-image": (
+        "版式化设计与信息卡片（手绘高亮信息卡片、产品视觉设定、多图层规范表等高信息密度排版）；"
+        "经典动画与童话风格（吉卜力赛璐璐动画风、清新水彩、儿童绘本风）；现代创意与立体风格"
+        "（3D Q版角色、Low Poly 低多边形、像素艺术、干净矢量插画）"
+    ),
+    "gemini": (
+        "写实摄影与纪实风格（杂志封面、日常街景、高端商业人像，光影/PBR 材质/胶片颗粒感/构图把控到位）；"
+        "3D 卡通与等距微缩模型 Isometric（色彩鲜艳的 3D 图标、建筑微缩景观，精准 45° 俯视等距视角）；"
+        "信息图表与商业营销素材（清晰排版、图表、标语、现代极简设计，可在图中生成清晰易读的衬线/无衬线字体）"
+    ),
+    "sensenova": (
+        "扁平、插画与手绘风（信息图 Infographics、条漫绘本；手绘水彩/水墨风带宣纸质感、复古中国风水墨；"
+        "现代扁平插画小卡片/对话气泡/节点路径，色彩具设计感）；专业平面设计与商用海报风（复古高端海报："
+        "摄影底图+低饱和暖色调+细长宋体排版；多层嵌套 UI/游戏 UI/电商素材/产品传单，结构严谨无乱码）；"
+        "长卷与连环叙事风（24 节气国画长卷直出、多页绘本故事画风统一、人物不走调）；细腻真实的摄影与三次元写实"
+        "（美学专家模块优化光影/材质/透视空间，画面干净少瑕疵）"
+    ),
+}
+
 PROVIDER_TEMPLATES: dict[str, dict[str, Any]] = {
     "comfyui": {
         "name": "Local ComfyUI",
@@ -280,14 +308,38 @@ def load_config(data_dir: Path) -> tuple[list[dict[str, Any]], str | None]:
         return [], None
 
 
+def load_style_config(data_dir: Path) -> dict[str, Any]:
+    """读取画风设置。返回 {style_recommend: bool, custom_style: str}。"""
+    cfg_path = data_dir / "providers.json"
+    if not cfg_path.exists():
+        return {"style_recommend": False, "custom_style": ""}
+    try:
+        raw = json.loads(cfg_path.read_text(encoding="utf-8"))
+        return {
+            "style_recommend": bool(raw.get("style_recommend")),
+            "custom_style": str(raw.get("custom_style") or "").strip(),
+        }
+    except Exception:
+        return {"style_recommend": False, "custom_style": ""}
+
+
 def save_config(
-    data_dir: Path, providers: list[dict[str, Any]], default_model_id: str | None
+    data_dir: Path,
+    providers: list[dict[str, Any]],
+    default_model_id: str | None,
+    style_recommend: bool = False,
+    custom_style: str = "",
 ) -> None:
     cfg_path = data_dir / "providers.json"
     cfg_path.parent.mkdir(parents=True, exist_ok=True)
     cfg_path.write_text(
         json.dumps(
-            {"providers": providers, "default_model_id": default_model_id},
+            {
+                "providers": providers,
+                "default_model_id": default_model_id,
+                "style_recommend": bool(style_recommend),
+                "custom_style": str(custom_style or "").strip(),
+            },
             ensure_ascii=False,
             indent=2,
         ),
@@ -321,3 +373,57 @@ def resolve_model(
     if not (model.get("model") or "").strip() and prov["provider_type"] != "comfyui":
         raise ValueError(f"生图模型缺少供应商模型名：{model['name']}")
     return prov, model, endpoint_id(pid, mid)
+
+
+def resolve_default_model(
+    providers: list[dict[str, Any]], default_model_id: str | None
+) -> dict[str, Any] | None:
+    """根据默认模型 ID 解析出模型 dict；未配置/无效返回 None。"""
+    if not default_model_id:
+        return None
+    parsed = parse_endpoint_id(default_model_id)
+    if not parsed:
+        return None
+    pid, mid = parsed
+    prov = next((p for p in providers if p["id"] == pid), None)
+    if not prov:
+        return None
+    return next((m for m in prov.get("models") or [] if m["id"] == mid), None)
+
+
+def model_style_hint(model: dict[str, Any] | None) -> str:
+    """根据模型 dict 返回其擅长画风描述；未命中返回空串。
+
+    用「包含」而非「前缀」匹配：真实模型名如 doubao-seedream-5.0-lite
+    以 doubao 开头、sensenova-u1.5-lite 也常带厂商前缀，前缀匹配会漏。
+    """
+    if not model:
+        return ""
+    mname = str(model.get("model") or "").lower()
+    for prefix, style in MODEL_STYLES.items():
+        if prefix in mname:
+            return style
+    return ""
+
+
+def build_style_hint(
+    providers: list[dict[str, Any]],
+    default_model_id: str | None,
+    style_recommend: bool,
+    custom_style: str,
+) -> str:
+    """拼接注入工具 description 的画风文案。
+    - 模型推荐（勾选）命中当前默认模型时注入其擅长画风
+    - 自定义画风非空时追加用户建议
+    - 两者可叠加；都没有则返回空串（不注入）
+    """
+    parts: list[str] = []
+    if style_recommend:
+        model = resolve_default_model(providers, default_model_id)
+        rec = model_style_hint(model)
+        if rec:
+            parts.append(f"当前模型擅长的画风：{rec}")
+    cus = str(custom_style or "").strip()
+    if cus:
+        parts.append(f"用户希望使用的画风：{cus}")
+    return "；".join(parts)

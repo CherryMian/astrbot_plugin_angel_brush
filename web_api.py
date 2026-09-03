@@ -66,18 +66,23 @@ async def _get_json() -> dict[str, Any]:
 class BrushAPI:
     def __init__(self, data_dir: Path):
         self.data_dir = data_dir
+        self.gen_tool: Any = None
+        self.edit_tool: Any = None
 
     async def list_config(self):
         from .core import config as cfg
 
         providers, default_id = cfg.load_config(self.data_dir)
         options = cfg.derive_model_options(providers)
+        style = cfg.load_style_config(self.data_dir)
         return _ok(
             {
                 "providers": providers,
                 "default_model_id": default_id,
                 "options": options,
                 "templates": cfg.PROVIDER_TEMPLATES,
+                "style_recommend": style.get("style_recommend", False),
+                "custom_style": style.get("custom_style", ""),
             }
         )
 
@@ -95,17 +100,34 @@ class BrushAPI:
             default_id = str(default_id).strip() or None
         else:
             default_id = None
+        style_recommend = bool(payload.get("style_recommend"))
+        custom_style = str(payload.get("custom_style") or "").strip()
         try:
-            cfg.save_config(self.data_dir, providers, default_id)
+            cfg.save_config(
+                self.data_dir,
+                providers,
+                default_id,
+                style_recommend=style_recommend,
+                custom_style=custom_style,
+            )
         except Exception as e:
             logger.error(f"AngelBrush save failed: {e}", exc_info=True)
             return _err(f"保存失败: {e}")
+        # 保存后同步刷新已注册 LLM 工具的 description，画风即时进入下一轮 schema
+        try:
+            from . import tools as brush_tools
+
+            brush_tools.update_tool_descriptions(self.gen_tool, self.edit_tool)
+        except Exception as e:
+            logger.warning(f"AngelBrush update tool descriptions failed: {e}")
         options = cfg.derive_model_options(providers)
         return _ok(
             {
                 "providers": providers,
                 "default_model_id": default_id,
                 "options": options,
+                "style_recommend": style_recommend,
+                "custom_style": custom_style,
             },
             "已保存",
         )
@@ -268,8 +290,17 @@ class BrushAPI:
         return _ok({"b64": b64, "mime": mime, "path": rel})
 
 
-def register_routes(context, data_dir: Path) -> None:
+def register_routes(
+    context,
+    data_dir: Path,
+    gen_tool: Any = None,
+    edit_tool: Any = None,
+) -> None:
     api = BrushAPI(data_dir)
+    if gen_tool is not None:
+        api.gen_tool = gen_tool
+    if edit_tool is not None:
+        api.edit_tool = edit_tool
     routes = [
         ("/astrbot_plugin_angel_brush/config", api.list_config, ["GET"], "生图配置"),
         (

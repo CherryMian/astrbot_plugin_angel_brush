@@ -10,6 +10,41 @@ from astrbot.core.agent.run_context import ContextWrapper
 from astrbot.core.agent.tool import FunctionTool, ToolExecResult
 from astrbot.core.astr_agent_context import AstrAgentContext
 
+_GEN_BASE_DESC = "根据提示词生成一张图片，自动保存到插件数据目录；返回为 file 绝对路径，禁止在 markdown 内联。"
+_EDIT_BASE_DESC = "基于一张或多张输入图片按提示词编辑出新图（局部修改、消除、换背景、扩图、多图融合、风格参考），自动保存到插件数据目录；返回为 file 绝对路径，禁止在 markdown 内联。"
+
+
+def _style_suffix(data_dir: Path) -> str:
+    """读取画风配置并拼出 description 后缀；无画风时返回空串。"""
+    from .core import config as cfg
+
+    try:
+        providers, default_id = cfg.load_config(data_dir)
+        style = cfg.load_style_config(data_dir)
+        hint = cfg.build_style_hint(
+            providers,
+            default_id,
+            style.get("style_recommend", False),
+            style.get("custom_style", ""),
+        )
+        return f"\n\n画风要求：{hint}" if hint else ""
+    except Exception:
+        return ""
+
+
+def _update_description(tool: "AngelImageGenerateTool | AngelImageEditTool", base: str, data_dir: Path) -> None:
+    tool.description = base + _style_suffix(data_dir)
+
+
+def update_tool_descriptions(
+    gen_tool: "AngelImageGenerateTool | None", edit_tool: "AngelImageEditTool | None"
+) -> None:
+    """按当前画风配置刷新两个工具的 description（运行时调用，无需重启）。"""
+    if gen_tool is not None:
+        _update_description(gen_tool, _GEN_BASE_DESC, gen_tool.data_dir)
+    if edit_tool is not None:
+        _update_description(edit_tool, _EDIT_BASE_DESC, edit_tool.data_dir)
+
 
 def _tool_success_value(result: dict[str, Any], prefix: str) -> str:
     images = result.get("images") or []
@@ -39,18 +74,18 @@ def _tool_success_value(result: dict[str, Any], prefix: str) -> str:
 @dataclass
 class AngelImageGenerateTool(FunctionTool[AstrAgentContext]):
     name: str = "angel_image_generate"
-    description: str = "根据提示词生成一张图片，自动保存到插件数据目录；返回为 file 绝对路径，禁止在 markdown 内联。"
+    description: str = _GEN_BASE_DESC
     parameters: dict = field(
         default_factory=lambda: {
             "type": "object",
             "properties": {
                 "prompt": {
                     "type": "string",
-                    "description": "详细、可直接交给生图模型的提示词。",
+                    "description": "生成图片时，把提示词写成一段连续的中文描述，包含主体、场景、光线、风格、构图，以及画面的情绪、氛围和故事感。描述要细致，用词要华丽，文笔要丰富，尽可能丰富，像在给画家描述一幅你想画的画，写成一篇小作文。不只是描述画面里有什么，还要描述这幅画给人的感觉、藏着的情感和故事。",
                 },
                 "resolution": {
                     "type": "string",
-                    "description": "分辨率，例如 1024x1024，默认 1024x1024。",
+                    "description": "分辨率，例如 1024x1024，默认 1920x1920。",
                 },
             },
             "required": ["prompt"],
@@ -64,6 +99,11 @@ class AngelImageGenerateTool(FunctionTool[AstrAgentContext]):
     ) -> ToolExecResult:
         from .core import service
 
+        # 每次调用前刷新 description，保证画风变更即时进入下一轮 schema
+        try:
+            _update_description(self, _GEN_BASE_DESC, self.data_dir)
+        except Exception:
+            pass
         prompt = str(kwargs.get("prompt") or "").strip()
         resolution = str(kwargs.get("resolution") or "").strip() or None
         result = await service.generate_images(
@@ -76,7 +116,7 @@ class AngelImageGenerateTool(FunctionTool[AstrAgentContext]):
 @dataclass
 class AngelImageEditTool(FunctionTool[AstrAgentContext]):
     name: str = "angel_image_edit"
-    description: str = "基于一张或多张输入图片按提示词编辑出新图（局部修改、消除、换背景、扩图、多图融合、风格参考），自动保存到插件数据目录；返回为 file 绝对路径，禁止在 markdown 内联。"
+    description: str = _EDIT_BASE_DESC
     parameters: dict = field(
         default_factory=lambda: {
             "type": "object",
@@ -106,6 +146,11 @@ class AngelImageEditTool(FunctionTool[AstrAgentContext]):
     ) -> ToolExecResult:
         from .core import service
 
+        # 每次调用前刷新 description，保证画风变更即时进入下一轮 schema
+        try:
+            _update_description(self, _EDIT_BASE_DESC, self.data_dir)
+        except Exception:
+            pass
         prompt = str(kwargs.get("prompt") or "").strip()
         images = kwargs.get("images") or []
         mask = str(kwargs.get("mask") or "").strip() or None

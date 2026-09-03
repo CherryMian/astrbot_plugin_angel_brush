@@ -187,33 +187,59 @@ def xai_generation_payload(
     return payload
 
 
+def _is_seedream_v5(model_name: str) -> bool:
+    low = (model_name or "").lower()
+    return "seedream" in low and ("5.0" in low or "5-0" in low)
+
+
+def _seedream_min_pixels(model_name: str) -> int:
+    """豆包 seedream 5.0 系列 image 生成最小像素要求（官方报错口径）。"""
+    return 3686400  # 1920x1920
+
+
+def enlarge_seedream_size(raw: str | None, model_name: str) -> str | None:
+    """豆包专用尺寸放大函数：seedream 5.0 若像素不足 3686400，
+    把短边钉到 1920、长边按原比例等比放大取整；合法原样返回。
+    解析不出像素时落 1920x1920。仅对 seedream 5.0 生效。"""
+    if not raw or not _is_seedream_v5(model_name):
+        return _trim_opt(raw)
+    s = raw.strip()
+    low = s.lower()
+    # 档位词 / 无法解析成像素：兜底 1:1 最小合法
+    if low in ("1k", "2k", "4k") or "x" not in s:
+        return "1920x1920"
+    parsed = parse_pixel_size(s)
+    if not parsed:
+        return "1920x1920"
+    w, h = parsed
+    if w * h >= _seedream_min_pixels(model_name):
+        return f"{w}x{h}"
+    short, long_ = (w, h) if w <= h else (h, w)
+    k = 1920 / short
+    long_scaled = int(round(long_ * k))
+    if w <= h:
+        return f"1920x{long_scaled}"
+    return f"{long_scaled}x1920"
+
+
 def seedream_generation_payload(
     req: dict[str, Any], provider: dict[str, Any], model: dict[str, Any]
 ) -> dict[str, Any]:
-    model_name = str(model.get("model") or "").lower()
-    aspect = effective_aspect(req, model)
-    size = _trim_opt(req.get("size"))
-    if size is None:
-        ds = _trim_opt(model.get("default_size"))
-        if ds and (aspect is None or not parse_pixel_size(ds)):
-            size = ds
-        elif ds and "seedream-5-0-pro" in model_name:
-            size = "2K"
-        elif ds:
-            size = ds
+    model_name = str(model.get("model") or "")
+    raw = _trim_opt(req.get("size")) or _trim_opt(model.get("default_size"))
+    if not raw:
+        raw = "1920x1920" if _is_seedream_v5(model_name) else "2048x2048"
+    size = enlarge_seedream_size(raw, model_name)
     payload: dict[str, Any] = {
         "model": model["model"],
         "prompt": effective_prompt(req),
         "response_format": "b64_json",
         "watermark": bool(provider.get("watermark")),
     }
-    if "seedream-5-0" in model_name:
+    if _is_seedream_v5(model_name):
         payload["output_format"] = "png"
     if size:
         payload["size"] = size
-    if aspect:
-        # seedream aspect handling varies; keep as extra if needed
-        pass
     # quality mapping for seedream: standard/fast etc via model default
     q = effective_quality(req, model)
     if q:
@@ -313,8 +339,10 @@ def seedream_edit_payload(
     data_urls: list[str],
 ) -> dict[str, Any]:
     prompt = effective_prompt(req)
-    explicit = _trim_opt(req.get("size"))
-    if not explicit:
+    model_name = str(model.get("model") or "")
+    raw = _trim_opt(req.get("size"))
+    size = enlarge_seedream_size(raw, model_name) if raw else None
+    if not raw:
         aspect = _trim_opt(req.get("aspect_ratio"))
         if aspect:
             prompt += f"\n\n画面宽高比：{aspect}"
@@ -324,11 +352,11 @@ def seedream_edit_payload(
         "response_format": "b64_json",
         "watermark": bool(provider.get("watermark")),
     }
-    if "seedream-5-0" in str(model.get("model") or "").lower():
+    if _is_seedream_v5(model_name):
         payload["output_format"] = "png"
     payload["image"] = data_urls[0] if len(data_urls) == 1 else data_urls
-    if explicit:
-        payload["size"] = explicit
+    if size:
+        payload["size"] = size
     return payload
 
 

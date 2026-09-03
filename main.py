@@ -46,17 +46,16 @@ class AngelBrushPlugin(Star):
         logger.info(f"AngelBrush: data_dir={data_dir}")
 
         # Register LLM tools - angel_ prefix required
-        self.context.add_llm_tools(
-            AngelImageGenerateTool(data_dir=data_dir),
-            AngelImageEditTool(data_dir=data_dir),
-        )
+        self.gen_tool = AngelImageGenerateTool(data_dir=data_dir)
+        self.edit_tool = AngelImageEditTool(data_dir=data_dir)
+        self.context.add_llm_tools(self.gen_tool, self.edit_tool)
         logger.info("AngelBrush: registered angel_image_generate / angel_image_edit")
 
         # Optional: register web api for providers.json editing
         try:
             from .web_api import register_routes
 
-            register_routes(self.context, data_dir)
+            register_routes(self.context, data_dir, self.gen_tool, self.edit_tool)
             logger.info("AngelBrush: web api registered")
         except Exception as e:  # pragma: no cover
             logger.debug(f"AngelBrush: web api not registered: {e}")
