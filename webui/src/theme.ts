@@ -62,9 +62,14 @@ export function buildThemeOverrides(mode: ThemeMode): GlobalThemeOverrides {
       fontSize: '15px',
       borderRadius: '10px',
       borderRadiusSmall: '8px',
+      bodyColor: mode === 'light' ? '#F5F5F5' : '#101014',
     },
     Button: {
       borderRadius: '999px',
+    },
+    Layout: {
+      color: mode === 'light' ? '#F5F5F5' : '#101014',
+      siderColor: mode === 'light' ? '#F5F5F5' : '#101014',
     },
   }
 }

@@ -55,7 +55,7 @@ body,
 /* ---------- Liquid Glass 设计令牌（与天使之心同款） ---------- */
 
 :root[data-theme='light'] {
-  --bg-base: #f2f2f7;
+  --bg-base: #F5F5F5;
   --glass-thick-bg: rgba(255, 255, 255, 0.95);
   --glass-regular-bg: rgba(255, 255, 255, 0.6);
   --glass-border: rgba(255, 255, 255, 0.65);
@@ -75,7 +75,7 @@ body,
 }
 
 :root[data-theme='dark'] {
-  --bg-base: #0d0d0f;
+  --bg-base: #101014;
   --glass-thick-bg: rgba(60, 60, 64, 0.92);
   --glass-regular-bg: rgba(48, 48, 52, 0.6);
   --glass-border: rgba(255, 255, 255, 0.14);
