@@ -254,6 +254,83 @@ def _parse_gemini_response(
     return images, ("\n".join(texts) if texts else None)
 
 
+def _parse_responses_api_response(
+    value: dict[str, Any],
+) -> tuple[list[dict[str, Any]], str | None]:
+    images: list[dict[str, Any]] = []
+    texts: list[str] = []
+
+    def _extract_from_obj(obj: Any):
+        if isinstance(obj, dict):
+            b64 = obj.get("b64_json") or obj.get("b64Json") or obj.get("base64")
+            if b64 and isinstance(b64, str) and len(b64) > 10:
+                images.append(
+                    {
+                        "bytes": storage.decode_b64(b64),
+                        "remote_url": None,
+                        "revised_prompt": obj.get("revised_prompt"),
+                    }
+                )
+                return
+            url = obj.get("url") or obj.get("image_url")
+            if isinstance(url, dict):
+                url = url.get("url")
+            if url and isinstance(url, str) and (
+                url.startswith("http://")
+                or url.startswith("https://")
+                or url.startswith("data:image/")
+            ):
+                if url.startswith("data:image/"):
+                    images.append(
+                        {
+                            "bytes": storage.decode_b64(url),
+                            "remote_url": None,
+                            "revised_prompt": obj.get("revised_prompt"),
+                        }
+                    )
+                else:
+                    images.append(
+                        {
+                            "remote_url": url,
+                            "revised_prompt": obj.get("revised_prompt"),
+                        }
+                    )
+                return
+
+            t = obj.get("text")
+            if isinstance(t, str) and t.strip():
+                texts.append(t.strip())
+
+            for k in (
+                "output",
+                "content",
+                "parts",
+                "tools",
+                "tool_calls",
+                "tool_call",
+                "result",
+                "items",
+                "data",
+                "message",
+                "images",
+                "image",
+            ):
+                if k in obj:
+                    _extract_from_obj(obj[k])
+        elif isinstance(obj, list):
+            for item in obj:
+                _extract_from_obj(item)
+
+    _extract_from_obj(value)
+
+    if not images:
+        txt = "\n".join(texts)
+        raise ValueError(
+            f"Responses API 未返回图片数据：{txt}" if txt else "Responses API 响应中没有可用图片"
+        )
+    return images, ("\n".join(texts) if texts else None)
+
+
 async def _download_remote(provider: dict[str, Any], api_key: str, url: str) -> bytes:
     if url.startswith("data:image/"):
         return storage.decode_b64(url)
@@ -492,6 +569,25 @@ async def _request_with_provider(
                 pending = _parse_openai_response(resp.json())
                 return pending, None
 
+        elif kind == "responses":
+            endpoint = prov.append_endpoint(provider["base_url"], "/responses")
+            headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+            if req["operation"] == "edit":
+                urls = [
+                    _image_to_data_url(im["bytes"], im["mime"])
+                    for im in edit_inputs["images"]
+                ]
+                payload = prov.responses_edit_payload(req, model, urls)
+            else:
+                payload = prov.responses_generation_payload(req, model)
+            resp = await client.post(endpoint, json=payload, headers=headers)
+            if resp.status_code >= 400:
+                raise ValueError(
+                    f"{provider['name']} 请求失败：HTTP {resp.status_code}，{resp.text[:2000]}"
+                )
+            pending, text = _parse_responses_api_response(resp.json())
+            return pending, text
+
         elif kind == "comfyui":
             raise ValueError("ComfyUI 暂未实现，请使用 openai 兼容供应商")
         else:
@@ -507,6 +603,33 @@ async def generate_images(
     http_client: httpx.AsyncClient | None = None,
 ) -> dict[str, Any]:
     req = _normalize_request(raw_request)
+
+    # 1. Check edit_enabled
+    if req["operation"] == "edit" and not cfg.load_edit_enabled(data_dir):
+        raise ValueError("图片编辑功能已被管理员关闭，暂不接受改图需求。")
+
+    # 2. Apply fixed / hardcoded parameters if enabled
+    fixed = cfg.load_fixed_params(data_dir)
+    if fixed.get("enabled"):
+        if fixed.get("model_id"):
+            req["model_id"] = fixed["model_id"]
+        if fixed.get("resolution"):
+            req["size"] = fixed["resolution"]
+        if fixed.get("quality"):
+            req["quality"] = fixed["quality"]
+        if fixed.get("aspect_ratio"):
+            req["aspect_ratio"] = fixed["aspect_ratio"]
+        if fixed.get("negative_prompt"):
+            mode = fixed.get("negative_prompt_mode", "override")
+            if mode == "override":
+                req["negative_prompt"] = fixed["negative_prompt"]
+            else:
+                orig = (req.get("negative_prompt") or "").strip()
+                fix_neg = fixed["negative_prompt"].strip()
+                req["negative_prompt"] = f"{orig} {fix_neg}".strip() if orig else fix_neg
+        if fixed.get("n") is not None and req["operation"] != "edit":
+            req["n"] = int(fixed["n"])
+
     providers, default_id = cfg.load_config(data_dir)
     provider, model, eid = cfg.resolve_model(providers, default_id, req.get("model_id"))
     logger.info(

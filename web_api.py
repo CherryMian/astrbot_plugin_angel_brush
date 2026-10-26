@@ -72,17 +72,19 @@ class BrushAPI:
     async def list_config(self):
         from .core import config as cfg
 
-        providers, default_id = cfg.load_config(self.data_dir)
-        options = cfg.derive_model_options(providers)
-        style = cfg.load_style_config(self.data_dir)
+        full = cfg.load_full_config(self.data_dir)
+        options = cfg.derive_model_options(full["providers"])
         return _ok(
             {
-                "providers": providers,
-                "default_model_id": default_id,
+                "providers": full["providers"],
+                "default_model_id": full["default_model_id"],
                 "options": options,
                 "templates": cfg.PROVIDER_TEMPLATES,
-                "style_recommend": style.get("style_recommend", False),
-                "custom_style": style.get("custom_style", ""),
+                "style_recommend": full["style_recommend"],
+                "custom_style": full["custom_style"],
+                "ratelimit": full["ratelimit"],
+                "edit_enabled": full["edit_enabled"],
+                "fixed_params": full["fixed_params"],
             }
         )
 
@@ -102,6 +104,11 @@ class BrushAPI:
             default_id = None
         style_recommend = bool(payload.get("style_recommend"))
         custom_style = str(payload.get("custom_style") or "").strip()
+        ratelimit = payload.get("ratelimit")
+        edit_en = payload.get("edit_enabled")
+        edit_enabled = True if edit_en is None else bool(edit_en)
+        fixed_params = payload.get("fixed_params")
+
         try:
             cfg.save_config(
                 self.data_dir,
@@ -109,11 +116,14 @@ class BrushAPI:
                 default_id,
                 style_recommend=style_recommend,
                 custom_style=custom_style,
+                ratelimit=ratelimit,
+                edit_enabled=edit_enabled,
+                fixed_params=fixed_params,
             )
         except Exception as e:
             logger.error(f"AngelBrush save failed: {e}", exc_info=True)
             return _err(f"保存失败: {e}")
-        # 保存后同步刷新已注册 LLM 工具的 description，画风即时进入下一轮 schema
+        # 保存后同步刷新已注册 LLM 工具的 description，画风/改图/锁定参数即时进入下一轮 schema
         try:
             from . import tools as brush_tools
 
@@ -128,9 +138,18 @@ class BrushAPI:
                 "options": options,
                 "style_recommend": style_recommend,
                 "custom_style": custom_style,
+                "ratelimit": cfg.load_ratelimit_config(self.data_dir),
+                "edit_enabled": edit_enabled,
+                "fixed_params": cfg.load_fixed_params(self.data_dir),
             },
             "已保存",
         )
+
+    async def reset_ratelimit(self):
+        from .core.ratelimit import rate_limiter
+
+        await rate_limiter.reset()
+        return _ok(None, "速率限制计数已清空")
 
     async def test_generate(self):
         payload = await _get_json()
@@ -327,10 +346,16 @@ def register_routes(
             ["GET"],
             "图片 base64",
         ),
+        (
+            "/astrbot_plugin_angel_brush/ratelimit/reset",
+            api.reset_ratelimit,
+            ["POST"],
+            "重置速率限制计数",
+        ),
     ]
     for path, handler, methods, desc in routes:
         try:
             context.register_web_api(path, handler, methods, desc)
         except Exception as e:
             logger.warning(f"AngelBrush register {path} failed: {e}")
-    logger.info("AngelBrush: web api registered (5 routes)")
+    logger.info("AngelBrush: web api registered (6 routes)")

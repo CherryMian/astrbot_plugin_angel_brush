@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -10,8 +11,60 @@ from astrbot.core.agent.run_context import ContextWrapper
 from astrbot.core.agent.tool import FunctionTool, ToolExecResult
 from astrbot.core.astr_agent_context import AstrAgentContext
 
+from .core.ratelimit import rate_limiter
+
 _GEN_BASE_DESC = "根据提示词生成一张图片，自动保存到插件数据目录；返回为 file 绝对路径，禁止在 markdown 内联。"
 _EDIT_BASE_DESC = "基于一张或多张输入图片按提示词编辑出新图（局部修改、消除、换背景、扩图、多图融合、风格参考），自动保存到插件数据目录；返回为 file 绝对路径，禁止在 markdown 内联。"
+_EDIT_DISABLED_DESC = "【当前已禁用】图片编辑功能当前已被管理员关闭。请不要调用此工具。"
+
+
+def _extract_user_and_chat(context: Any) -> tuple[str, str]:
+    """提取调用者的用户 ID 和会话 ID，以支持多维度速率限制。"""
+    user_id = "default_user"
+    chat_id = "default_chat"
+    if context is None:
+        return user_id, chat_id
+
+    ctx = getattr(context, "context", context)
+    event = (
+        getattr(ctx, "event", None)
+        or getattr(context, "event", None)
+        or getattr(ctx, "message_event", None)
+    )
+
+    if event:
+        for attr in ("get_sender_id", "sender_id", "user_id"):
+            val = getattr(event, attr, None)
+            if callable(val):
+                try:
+                    val = val()
+                except Exception:
+                    val = None
+            if val:
+                user_id = str(val).strip()
+                break
+
+        for attr in ("get_session_id", "session_id", "unified_msg_origin", "chat_id", "group_id"):
+            val = getattr(event, attr, None)
+            if callable(val):
+                try:
+                    val = val()
+                except Exception:
+                    val = None
+            if val:
+                chat_id = str(val).strip()
+                break
+    else:
+        session = getattr(ctx, "session", None) or getattr(context, "session", None)
+        if session:
+            uid = getattr(session, "user_id", None)
+            if uid:
+                user_id = str(uid).strip()
+            sid = getattr(session, "session_id", None) or getattr(session, "id", None)
+            if sid:
+                chat_id = str(sid).strip()
+
+    return user_id, chat_id
 
 
 def _style_suffix(data_dir: Path) -> str:
@@ -32,14 +85,42 @@ def _style_suffix(data_dir: Path) -> str:
         return ""
 
 
-def _update_description(tool: "AngelImageGenerateTool | AngelImageEditTool", base: str, data_dir: Path) -> None:
-    tool.description = base + _style_suffix(data_dir)
+def _fixed_params_suffix(data_dir: Path) -> str:
+    """读取固定参数配置，并在 description 给出友好提示。"""
+    from .core import config as cfg
+
+    try:
+        fixed = cfg.load_fixed_params(data_dir)
+        if fixed.get("enabled"):
+            items = []
+            if fixed.get("resolution"):
+                items.append(f"分辨率={fixed['resolution']}")
+            if fixed.get("quality"):
+                items.append(f"质量={fixed['quality']}")
+            if items:
+                return f"\n\n（注意：管理员已全局锁定生图参数：{', '.join(items)}，传入其他参数将被自动覆盖）"
+    except Exception:
+        pass
+    return ""
+
+
+def _update_description(
+    tool: "AngelImageGenerateTool | AngelImageEditTool", base: str, data_dir: Path
+) -> None:
+    from .core import config as cfg
+
+    if isinstance(tool, AngelImageEditTool):
+        if not cfg.load_edit_enabled(data_dir):
+            tool.description = _EDIT_DISABLED_DESC
+            return
+
+    tool.description = base + _style_suffix(data_dir) + _fixed_params_suffix(data_dir)
 
 
 def update_tool_descriptions(
     gen_tool: "AngelImageGenerateTool | None", edit_tool: "AngelImageEditTool | None"
 ) -> None:
-    """按当前画风配置刷新两个工具的 description（运行时调用，无需重启）。"""
+    """按当前画风及配置刷新两个工具的 description（运行时调用，无需重启）。"""
     if gen_tool is not None:
         _update_description(gen_tool, _GEN_BASE_DESC, gen_tool.data_dir)
     if edit_tool is not None:
@@ -51,7 +132,6 @@ def _tool_success_value(result: dict[str, Any], prefix: str) -> str:
     image_lines = "\n".join(
         f"- {img.get('absolute_path') or img.get('relative_path')}" for img in images
     )
-    import json
 
     payload = {
         "ok": True,
@@ -69,6 +149,10 @@ def _tool_success_value(result: dict[str, Any], prefix: str) -> str:
         "providerText": result.get("provider_text"),
     }
     return json.dumps(payload, ensure_ascii=False)
+
+
+def _tool_error_value(message: str) -> str:
+    return json.dumps({"ok": False, "message": message}, ensure_ascii=False)
 
 
 @dataclass
@@ -97,13 +181,27 @@ class AngelImageGenerateTool(FunctionTool[AstrAgentContext]):
     async def call(
         self, context: ContextWrapper[AstrAgentContext], **kwargs
     ) -> ToolExecResult:
+        from .core import config as cfg
         from .core import service
 
-        # 每次调用前刷新 description，保证画风变更即时进入下一轮 schema
+        # 每次调用前刷新 description
         try:
             _update_description(self, _GEN_BASE_DESC, self.data_dir)
         except Exception:
             pass
+
+        # 速率限制校验
+        rl_cfg = cfg.load_ratelimit_config(self.data_dir)
+        if rl_cfg.get("enabled"):
+            user_id, chat_id = _extract_user_and_chat(context)
+            allowed, reason = await rate_limiter.check_and_record(
+                rl_cfg, user_id=user_id, chat_id=chat_id
+            )
+            if not allowed:
+                return _tool_error_value(
+                    f"【调用频率限制】{reason}。请直接向用户转述该限制，不要立即重试生图。"
+                )
+
         prompt = str(kwargs.get("prompt") or "").strip()
         resolution = str(kwargs.get("resolution") or "").strip() or None
         result = await service.generate_images(
@@ -144,13 +242,33 @@ class AngelImageEditTool(FunctionTool[AstrAgentContext]):
     async def call(
         self, context: ContextWrapper[AstrAgentContext], **kwargs
     ) -> ToolExecResult:
+        from .core import config as cfg
         from .core import service
 
-        # 每次调用前刷新 description，保证画风变更即时进入下一轮 schema
+        # 每次调用前刷新 description
         try:
             _update_description(self, _EDIT_BASE_DESC, self.data_dir)
         except Exception:
             pass
+
+        # 改图开关校验
+        if not cfg.load_edit_enabled(self.data_dir):
+            return _tool_error_value(
+                "【功能已关闭】管理员已禁用图片编辑功能（angel_image_edit），无法执行改图操作。请直接礼貌告知用户图片编辑功能当前已关闭。"
+            )
+
+        # 速率限制校验
+        rl_cfg = cfg.load_ratelimit_config(self.data_dir)
+        if rl_cfg.get("enabled"):
+            user_id, chat_id = _extract_user_and_chat(context)
+            allowed, reason = await rate_limiter.check_and_record(
+                rl_cfg, user_id=user_id, chat_id=chat_id
+            )
+            if not allowed:
+                return _tool_error_value(
+                    f"【调用频率限制】{reason}。请直接向用户转述该限制，不要立即重试改图。"
+                )
+
         prompt = str(kwargs.get("prompt") or "").strip()
         images = kwargs.get("images") or []
         mask = str(kwargs.get("mask") or "").strip() or None

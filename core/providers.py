@@ -380,3 +380,58 @@ def gemini_edit_payload(
             }
         )
     return {"model": model["model"], "input": items, "response_format": rf}
+
+
+def responses_generation_payload(
+    req: dict[str, Any], model: dict[str, Any]
+) -> dict[str, Any]:
+    """OpenAI Responses API (/v1/responses) 生图请求载荷构建。"""
+    prompt = effective_prompt(req)
+    model_name = model["model"]
+    payload: dict[str, Any] = {
+        "model": model_name,
+        "input": prompt,
+        "tools": [{"type": "image_generation"}],
+    }
+    size = effective_size(req, model)
+    if size:
+        payload["size"] = size
+    aspect = effective_aspect(req, model)
+    if aspect:
+        payload["aspect_ratio"] = aspect
+    quality = effective_quality(req, model)
+    if quality:
+        payload["quality"] = quality
+    return payload
+
+
+def responses_edit_payload(
+    req: dict[str, Any], model: dict[str, Any], image_urls: list[str]
+) -> dict[str, Any]:
+    """OpenAI Responses API (/v1/responses) 改图请求载荷构建。"""
+    prompt = effective_prompt(req)
+    model_name = model["model"]
+    content: list[dict[str, Any]] = [{"type": "input_text", "text": prompt}]
+    for u in image_urls:
+        content.append({
+            "type": "input_image",
+            "image_url": u if isinstance(u, str) else u.get("url", ""),
+        })
+    payload: dict[str, Any] = {
+        "model": model_name,
+        "input": [
+            {
+                "role": "user",
+                "content": content,
+            }
+        ],
+        "tools": [{"type": "image_generation"}],
+    }
+    size = effective_size(req, model)
+    if size:
+        payload["size"] = size
+    quality = effective_quality(req, model)
+    if quality:
+        payload["quality"] = quality
+    return payload
+

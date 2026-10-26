@@ -10,11 +10,85 @@ from typing import Any
 PROVIDER_KINDS = {
     "comfyui",
     "openai",
+    "responses",
     "xai",
     "seedream",
     "gemini",
     "sensenova",
 }
+
+DEFAULT_RATELIMIT: dict[str, Any] = {
+    "enabled": False,
+    "scope": "user",  # "user" | "chat" | "global"
+    "cooldown_seconds": 30,
+    "max_per_minute": 0,
+    "max_per_hour": 0,
+    "max_per_day": 0,
+    "custom_message": "生图请求过于频繁，请稍候再试~",
+}
+
+DEFAULT_FIXED_PARAMS: dict[str, Any] = {
+    "enabled": False,
+    "model_id": None,
+    "resolution": None,
+    "quality": None,
+    "aspect_ratio": None,
+    "negative_prompt": None,
+    "negative_prompt_mode": "override",  # "override" | "append"
+    "n": None,
+}
+
+
+def normalize_ratelimit(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        return dict(DEFAULT_RATELIMIT)
+    scope = str(value.get("scope") or "user").strip().lower()
+    if scope not in ("user", "chat", "global"):
+        scope = "user"
+    cooldown = int(value.get("cooldown_seconds") or 0)
+    max_min = int(value.get("max_per_minute") or 0)
+    max_hour = int(value.get("max_per_hour") or 0)
+    max_day = int(value.get("max_per_day") or 0)
+    msg = str(value.get("custom_message") or "").strip()
+    return {
+        "enabled": bool(value.get("enabled")),
+        "scope": scope,
+        "cooldown_seconds": max(0, min(86400, cooldown)),
+        "max_per_minute": max(0, min(1000, max_min)),
+        "max_per_hour": max(0, min(10000, max_hour)),
+        "max_per_day": max(0, min(100000, max_day)),
+        "custom_message": msg or DEFAULT_RATELIMIT["custom_message"],
+    }
+
+
+def normalize_fixed_params(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        return dict(DEFAULT_FIXED_PARAMS)
+    mode = str(value.get("negative_prompt_mode") or "override").strip().lower()
+    if mode not in ("override", "append"):
+        mode = "override"
+    mid = str(value.get("model_id") or "").strip() or None
+    res = str(value.get("resolution") or "").strip() or None
+    qua = str(value.get("quality") or "").strip() or None
+    asp = str(value.get("aspect_ratio") or "").strip() or None
+    neg = str(value.get("negative_prompt") or "").strip() or None
+    n_val = value.get("n")
+    try:
+        n_int = int(n_val) if n_val is not None and str(n_val).strip() != "" else None
+        if n_int is not None:
+            n_int = max(1, min(4, n_int))
+    except Exception:
+        n_int = None
+    return {
+        "enabled": bool(value.get("enabled")),
+        "model_id": mid,
+        "resolution": res,
+        "quality": qua,
+        "aspect_ratio": asp,
+        "negative_prompt": neg,
+        "negative_prompt_mode": mode,
+        "n": n_int,
+    }
 
 # 模型前缀 -> 擅长画风描述（用户确认口径）
 MODEL_STYLES: dict[str, str] = {
@@ -64,6 +138,17 @@ PROVIDER_TEMPLATES: dict[str, dict[str, Any]] = {
             "default_size": "1024x1024",
             "default_aspect_ratio": "1:1",
             "default_quality": "medium",
+        },
+    },
+    "responses": {
+        "name": "OpenAI Responses API",
+        "base_url": "https://api.openai.com/v1",
+        "model": {
+            "name": "GPT-4o (Responses)",
+            "model": "gpt-4o",
+            "default_size": "1024x1024",
+            "default_aspect_ratio": "1:1",
+            "default_quality": "standard",
         },
     },
     "xai": {
@@ -277,50 +362,79 @@ def derive_model_options(providers: list[dict[str, Any]]) -> list[dict[str, Any]
     return opts
 
 
-def load_config(data_dir: Path) -> tuple[list[dict[str, Any]], str | None]:
-    """Load providers.json from plugin data dir. Returns (providers, default_model_id)."""
+def load_full_config(data_dir: Path) -> dict[str, Any]:
+    """读取完整配置，包含供应商、默认模型、画风、速率限制、改图开关及固定请求参数。"""
     cfg_path = data_dir / "providers.json"
     if not cfg_path.exists():
-        # create empty template
-        try:
-            cfg_path.write_text(
-                json.dumps(
-                    {"providers": [], "default_model_id": None},
-                    ensure_ascii=False,
-                    indent=2,
-                ),
-                encoding="utf-8",
-            )
-        except Exception:
-            pass
-        return [], None
+        return {
+            "providers": [],
+            "default_model_id": None,
+            "style_recommend": False,
+            "custom_style": "",
+            "ratelimit": dict(DEFAULT_RATELIMIT),
+            "edit_enabled": True,
+            "fixed_params": dict(DEFAULT_FIXED_PARAMS),
+        }
     try:
         raw = json.loads(cfg_path.read_text(encoding="utf-8"))
         providers = normalize_providers(raw.get("providers"))
         default_id = str(raw.get("default_model_id") or "").strip() or None
-        # validate default still exists
         if default_id and not any(
             o["id"] == default_id for o in derive_model_options(providers)
         ):
             default_id = None
-        return providers, default_id
+        edit_en = raw.get("edit_enabled")
+        if edit_en is None:
+            edit_en = True
+        return {
+            "providers": providers,
+            "default_model_id": default_id,
+            "style_recommend": bool(raw.get("style_recommend")),
+            "custom_style": str(raw.get("custom_style") or "").strip(),
+            "ratelimit": normalize_ratelimit(raw.get("ratelimit")),
+            "edit_enabled": bool(edit_en),
+            "fixed_params": normalize_fixed_params(raw.get("fixed_params")),
+        }
     except Exception:
-        return [], None
+        return {
+            "providers": [],
+            "default_model_id": None,
+            "style_recommend": False,
+            "custom_style": "",
+            "ratelimit": dict(DEFAULT_RATELIMIT),
+            "edit_enabled": True,
+            "fixed_params": dict(DEFAULT_FIXED_PARAMS),
+        }
+
+
+def load_config(data_dir: Path) -> tuple[list[dict[str, Any]], str | None]:
+    """Load providers.json from plugin data dir. Returns (providers, default_model_id)."""
+    full = load_full_config(data_dir)
+    return full["providers"], full["default_model_id"]
 
 
 def load_style_config(data_dir: Path) -> dict[str, Any]:
     """读取画风设置。返回 {style_recommend: bool, custom_style: str}。"""
-    cfg_path = data_dir / "providers.json"
-    if not cfg_path.exists():
-        return {"style_recommend": False, "custom_style": ""}
-    try:
-        raw = json.loads(cfg_path.read_text(encoding="utf-8"))
-        return {
-            "style_recommend": bool(raw.get("style_recommend")),
-            "custom_style": str(raw.get("custom_style") or "").strip(),
-        }
-    except Exception:
-        return {"style_recommend": False, "custom_style": ""}
+    full = load_full_config(data_dir)
+    return {
+        "style_recommend": full["style_recommend"],
+        "custom_style": full["custom_style"],
+    }
+
+
+def load_ratelimit_config(data_dir: Path) -> dict[str, Any]:
+    """读取速率限制设置。"""
+    return load_full_config(data_dir)["ratelimit"]
+
+
+def load_edit_enabled(data_dir: Path) -> bool:
+    """读取是否允许图片编辑。"""
+    return load_full_config(data_dir)["edit_enabled"]
+
+
+def load_fixed_params(data_dir: Path) -> dict[str, Any]:
+    """读取固定/写死请求参数配置。"""
+    return load_full_config(data_dir)["fixed_params"]
 
 
 def save_config(
@@ -329,20 +443,43 @@ def save_config(
     default_model_id: str | None,
     style_recommend: bool = False,
     custom_style: str = "",
+    ratelimit: dict[str, Any] | None = None,
+    edit_enabled: bool = True,
+    fixed_params: dict[str, Any] | None = None,
 ) -> None:
     cfg_path = data_dir / "providers.json"
     cfg_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    # Read existing if we need to preserve omitted values
+    norm_rl = normalize_ratelimit(ratelimit) if ratelimit is not None else None
+    norm_fp = normalize_fixed_params(fixed_params) if fixed_params is not None else None
+    
+    if cfg_path.exists() and (norm_rl is None or norm_fp is None):
+        try:
+            curr = load_full_config(data_dir)
+            if norm_rl is None:
+                norm_rl = curr["ratelimit"]
+            if norm_fp is None:
+                norm_fp = curr["fixed_params"]
+        except Exception:
+            pass
+
+    if norm_rl is None:
+        norm_rl = dict(DEFAULT_RATELIMIT)
+    if norm_fp is None:
+        norm_fp = dict(DEFAULT_FIXED_PARAMS)
+
+    data = {
+        "providers": providers,
+        "default_model_id": default_model_id,
+        "style_recommend": bool(style_recommend),
+        "custom_style": str(custom_style or "").strip(),
+        "ratelimit": norm_rl,
+        "edit_enabled": bool(edit_enabled),
+        "fixed_params": norm_fp,
+    }
     cfg_path.write_text(
-        json.dumps(
-            {
-                "providers": providers,
-                "default_model_id": default_model_id,
-                "style_recommend": bool(style_recommend),
-                "custom_style": str(custom_style or "").strip(),
-            },
-            ensure_ascii=False,
-            indent=2,
-        ),
+        json.dumps(data, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
 
